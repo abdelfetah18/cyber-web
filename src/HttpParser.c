@@ -69,7 +69,7 @@ char* resize_and_cat(char* str1, char* str2){
     uint str2_len = strlen(str2);
     char* new_str = malloc(sizeof(char) * (str1_len + str2_len + 1));
     strncpy(new_str, str1, str1_len);
-    strncpy(new_str + str1_len, str2, str1_len);
+    strncpy(new_str + str1_len, str2, str2_len);
     return new_str;
 }
 
@@ -187,6 +187,10 @@ void parseHttpRequest(Parser* parser,char* input){
                 pos += 2;
             }
 
+            if(http_raw_request[pos] == '\0'){
+                return;
+            }
+
             if(parser->parser_state == PS_FIELD_NAME){
                 char* field_name = parseFieldName(http_raw_request, &pos);
                 if(parser->last_field_name != NULL){
@@ -202,6 +206,8 @@ void parseHttpRequest(Parser* parser,char* input){
                     pos += 1;
                     skipWhiteSpace(http_raw_request, &pos);
                     parser->parser_state = PS_FIELD_VALUE;
+                }else if(http_raw_request[pos] == '\0'){
+                    return;
                 }else{
                     parser->parser_state = PS_INVALID;
                     return;
