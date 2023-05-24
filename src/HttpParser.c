@@ -19,6 +19,12 @@ HTTP_METHOD parseHttpMethod(char* input,uint* pos){
         *pos += 3;
         return HM_GET;
     }
+    
+    if(strncmp(input+*pos, "POST", 4) == 0){
+        *pos += 4;
+        return HM_POST;
+    }
+    
     if(strncmp(input+*pos, "CONNECT", 7) == 0){
         *pos += 7;
         return HM_CONNECT;
@@ -142,7 +148,7 @@ void parseHttpRequest(Parser* parser,char* input){
             while(input[pos+len] != '\0' && input[pos+len] != ' ')
                 len += 1;
             
-            char* path = malloc(sizeof(len+1));
+            char* path = malloc(sizeof(char) * (len+1));
             parser->http_request->path_or_resource = path;
             strncpy(path, input+pos, len);
             path[len] = '\0';
