@@ -229,7 +229,7 @@ void createAndSignACertificate(char* hostname){
     }
 
     char* path = "hosts/";
-    char* target_host_file = malloc((sizeof(char) * strlen(hostname)) + 11);
+    char* target_host_file = malloc((sizeof(char) * (strlen(hostname) + 11)));
     strcpy(target_host_file, path);
     strcpy(target_host_file+6, hostname);
     strcpy(target_host_file+6+strlen(hostname), ".crt");
@@ -274,8 +274,8 @@ char* getCertificate(char* hostname){
 
     bool does_exist = false;
     while((entry = readdir(dir)) != NULL){
-        printf("cert: %s\n", entry->d_name);
         if(strcmp(entry->d_name, target_host_file) == 0){
+            printf("[*] Already exists: %s\n", entry->d_name);
             does_exist = true;
             break;
         }
