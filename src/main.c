@@ -5,6 +5,7 @@
 
 #include "headers/ServerManager.h"
 #include "headers/RequestsManager.h"
+#include "headers/HttpParser.h"
 
 typedef struct WorkerParams {
     SSL* client_ssl;
@@ -28,10 +29,45 @@ void workerThread(void* args){
         char buf[MAX_BUFFER_SIZE];
         memset(buf, 0, MAX_BUFFER_SIZE);
         unsigned int bytes = SSL_read(client_ssl, buf, sizeof(buf));
-        // Forward http request to the target server.
-        SSL_write(host_ssl, buf, strlen(buf));
 
-        // FIXME: Parse Http Request to know the end of the request.
+        Parser* http_parser = createParser();
+        printf("[*] Prepare for parsing.\n");
+        parseHttpRequest(http_parser, buf);
+        
+        if(http_parser->parser_state == PS_INVALID){
+            printf("[*] Invalid Data.\n");
+            printf("\n\n%s\n\n", buf);
+            // Close the connection.
+            SSL_shutdown(host_ssl);
+            SSL_free(host_ssl);
+            SSL_shutdown(client_ssl);
+            SSL_free(client_ssl);
+            close(client);
+            close(host);
+            exit(1);
+        }
+        
+        printf("[*] Prepare full request buffer.\n");
+        char* full_request = malloc(sizeof(char) * (bytes+1));
+        strncpy(full_request, buf, bytes);
+        // Send the full Http Request.
+        while(http_parser->parser_state != PS_DONE){
+            memset(buf, 0, MAX_BUFFER_SIZE);
+            bytes = SSL_read(client_ssl, buf, sizeof(buf));
+            parseHttpRequest(http_parser, buf);
+            char* ptr = resize_and_cat(full_request, buf);
+            free(full_request);
+            full_request = ptr;
+        }
+        
+        printf("[*] Parsing done.\n");
+        
+        // Forward http request to the target server.
+        SSL_write(host_ssl, full_request, strlen(full_request));
+        
+        printf("[*] Request sent.\n");
+
+        // Receive the Http Response.
         while(1){
             // Receive the response.
             char result_buf[MAX_BUFFER_SIZE];
@@ -50,13 +86,14 @@ void workerThread(void* args){
                 SSL_free(client_ssl);
                 close(client);
                 close(host);
-                printf("client connection closed.\n");
+                printf("[*] Client connection closed.\n");
+                printf("[*] Host connection closed.\n");
                 break;
             }
         }
     }
     
-    exit(0);
+    printf("[*] Thread have completed its work.\n");
 }
 
 int main(){
@@ -64,16 +101,14 @@ int main(){
     printf("[*] Server is up running on port 8080.\n");
     while(true){
         Client* client = acceptConnections(server->socket);
-        printf("[*] New client.\n");
+        printf("[*] New client. ============================================================= \n");
         RecvData recv_data = receiveData(client->socket);
         printf("[*] Client has sent some data.\n");
         HandleDataResult res = handleData(recv_data.data);
         printf("[*] Client data has been handled.\n");
-        // If it a CONNECT Request then establish a connection with target host and reply with status 200.
-        /*
-            HostName
-        */
+        
         if(res.is_valid){
+            printf("[*] Target hostname: %s\n.", res.target_host_name);
             Host* host = connectToHost(res.target_host_name);
             printf("[*] Host Connected.\n");
             SSL* host_ssl = upgradeToSSL(host->socket);
@@ -95,7 +130,6 @@ int main(){
             params->host = host;
             pthread_t WORKER_ID;
             pthread_create(&WORKER_ID, NULL, workerThread, params);
-            
         }
     }
     
