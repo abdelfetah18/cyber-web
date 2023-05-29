@@ -1,12 +1,14 @@
 project(JsEngine LANGUAGES C)
 
 set(HEADERS
+    "src/headers/BufferStorage.h"
     "src/headers/CertificateManager.h"
     "src/headers/HttpParser.h"
     "src/headers/RequestsManager.h"
     "src/headers/ServerManager.h")
 
 set(SOURCES
+    "src/BufferStorage.c"
     "src/CertificateManager.c"
     "src/HttpParser.c"
     "src/main.c"
