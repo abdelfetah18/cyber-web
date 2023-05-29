@@ -6,6 +6,7 @@
 #include "headers/ServerManager.h"
 #include "headers/RequestsManager.h"
 #include "headers/HttpParser.h"
+#include "headers/BufferStorage.h"
 
 typedef struct WorkerParams {
     SSL* client_ssl;
@@ -13,6 +14,8 @@ typedef struct WorkerParams {
     SSL* host_ssl;
     SOCKET_HANDLE host;
 } WorkerParams;
+
+
 
 void workerThread(void* args){
     printf("[*] Thread Created Successfuly.\n");
@@ -30,9 +33,16 @@ void workerThread(void* args){
         memset(buf, 0, MAX_BUFFER_SIZE);
         unsigned int bytes = SSL_read(client_ssl, buf, sizeof(buf));
 
+        // printf("\n==============================[ Request ]==============================\n\n");
+        // printf("%s\n", buf);
+        // printf("\n============================[ End Request ]============================\n\n");
+
         Parser* http_parser = createParser();
         printf("[*] Prepare for parsing.\n");
-        parseHttpRequest(http_parser, buf);
+        ParserInput input;
+        input.data = buf;
+        input.size = bytes;
+        parseHttpRequest(http_parser,&input);
         
         if(http_parser->parser_state == PS_INVALID){
             printf("[*] Invalid Data.\n");
@@ -48,67 +58,117 @@ void workerThread(void* args){
         }
         
         printf("[*] Prepare full request buffer.\n");
-        char* full_request = malloc(sizeof(char) * (bytes+1));
-        strncpy(full_request, buf, bytes);
-        // Send the full Http Request.
+        printf("\n[*] Checking Parse Http Request State: %s\n", getParsingState(http_parser->parser_state));
+
+        BufferStorage* full_request_buffer = createBufferStorage();
+        appendToBuffer(full_request_buffer, buf, bytes);
         while(http_parser->parser_state != PS_DONE){
             memset(buf, 0, MAX_BUFFER_SIZE);
             bytes = SSL_read(client_ssl, buf, sizeof(buf));
-            parseHttpRequest(http_parser, buf);
-            char* ptr = resize_and_cat(full_request, buf);
-            free(full_request);
-            full_request = ptr;
+            input.data = buf;
+            input.size = bytes;
+            parseHttpRequest(http_parser, &input);
+            appendToBuffer(full_request_buffer, buf, bytes);
         }
         
         printf("[*] Parsing done.\n");
         
         // Forward http request to the target server.
-        SSL_write(host_ssl, full_request, strlen(full_request));
+        SSL_write(host_ssl, full_request_buffer->data, full_request_buffer->size);
         
         printf("[*] Request sent.\n");
 
         // Receive the Http Response.
-        while(1){
-            // Receive the response.
-            char result_buf[MAX_BUFFER_SIZE];
-            memset(result_buf, 0, MAX_BUFFER_SIZE);
-            bytes = SSL_read(host_ssl, result_buf, MAX_BUFFER_SIZE);
-            // Forward response to client.
-            SSL_write(client_ssl, result_buf, bytes);
+        char response_buf[MAX_BUFFER_SIZE];
+        memset(response_buf, 0, MAX_BUFFER_SIZE);
 
-            // Check if the SSL connection has been shutdown
-            int ssl_shutdown = SSL_get_shutdown(host_ssl);
-            if (ssl_shutdown & SSL_RECEIVED_SHUTDOWN) {
-                // Client has disconnected
-                SSL_shutdown(host_ssl);
-                SSL_free(host_ssl);
-                SSL_shutdown(client_ssl);
-                SSL_free(client_ssl);
-                close(client);
-                close(host);
-                printf("[*] Client connection closed.\n");
-                printf("[*] Host connection closed.\n");
-                break;
-            }
+        bytes = SSL_read(host_ssl, response_buf, MAX_BUFFER_SIZE);
+
+        // printf("\n==============================[ Response ]==============================\n\n");
+        // printf("%s\n", response_buf);
+        // hexPrint(response_buf, bytes);
+        // printf("\n============================[ End Response ]============================\n\n");
+
+
+        if(bytes == 0){
+            // NOTE: For some reasons if i am not doing this check i got a segfault problem.
+            // FIXME: Investigate the issue.
+            goto close_connection;
         }
+        http_parser->parser_state = PS_REQUEST_LINE;
+        input.data = response_buf;
+        input.size = bytes;
+        parseHttpResponse(http_parser, &input);
+        printf("[ parseHttpResponse ]: %s\n", getParsingState(http_parser->parser_state));
+        
+        
+        printf("[*] Prepare full response buffer.\n");
+        BufferStorage* full_response_buffer = createBufferStorage();
+        appendToBuffer(full_response_buffer, response_buf, bytes);
+
+        while(http_parser->parser_state != PS_DONE){
+            memset(response_buf, 0, MAX_BUFFER_SIZE);
+            bytes = SSL_read(host_ssl, response_buf, MAX_BUFFER_SIZE);
+            printf("Bytes: %d\n", bytes);
+            appendToBuffer(full_response_buffer, response_buf, bytes);
+            input.data = response_buf;
+            input.size = bytes;
+            parseHttpResponse(http_parser, &input);
+            printf("[*] ParseHttpResponse: %s\n", getParsingState(http_parser->parser_state));
+        }
+        
+        printf("[*] Checking Parse Http Response State: %s\n", getParsingState(http_parser->parser_state));
+        if(http_parser->parser_state == PS_DONE){
+            printf("[*] Parsing Response Done.\n");
+            for(uint index = 0; index < full_response_buffer->size; index += MAX_BUFFER_SIZE){
+                SSL_write(client_ssl, full_response_buffer->data + index, MAX_BUFFER_SIZE);
+                // printf("[x] Index: %u\n", index);
+            }
+            uint t = ((full_response_buffer->size / MAX_BUFFER_SIZE) * MAX_BUFFER_SIZE);
+            SSL_write(client_ssl, full_response_buffer->data + t, full_response_buffer->size % MAX_BUFFER_SIZE);
+
+            // printf("[x] MAX_BUFFER_SIZE: %u\n", MAX_BUFFER_SIZE);
+            printf("[x] full_response_buffer->size: %u\n", full_response_buffer->size);
+
+            uint i = full_response_buffer->size - 5;
+            printf("FINAL_LINE:\n%x %x %x %x %x\n", full_response_buffer->data[i], full_response_buffer->data[i + 1], full_response_buffer->data[i + 2], full_response_buffer->data[i + 3]);
+        }
+        
+        close_connection:
+        // Close the connections.
+        SSL_shutdown(host_ssl);
+        SSL_free(host_ssl);
+        SSL_shutdown(client_ssl);
+        SSL_free(client_ssl);
+        close(client);
+        close(host);
+        printf("[*] Client connection closed.\n");
+        printf("[*] Host connection closed.\n");
     }
     
     printf("[*] Thread have completed its work.\n");
 }
 
-int main(){
-    Server* server = createServer(8080);
-    printf("[*] Server is up running on port 8080.\n");
+int main(int argc,char** argv){
+    uint port = 8080;
+    if(argc == 2){
+        port = atoi(argv[1]);
+    }
+    Server* server = createServer(port);
+    printf("[*] Server is up running on port %d.\n", port);
     while(true){
         Client* client = acceptConnections(server->socket);
-        printf("[*] New client. ============================================================= \n");
+        printf("[*] New client. \n");
         RecvData recv_data = receiveData(client->socket);
         printf("[*] Client has sent some data.\n");
-        HandleDataResult res = handleData(recv_data.data);
+        ParserInput parser_input;
+        parser_input.data = recv_data.data;
+        parser_input.size = recv_data.size;
+        HandleDataResult res = handleData(&parser_input);
         printf("[*] Client data has been handled.\n");
         
         if(res.is_valid){
-            printf("[*] Target hostname: %s\n.", res.target_host_name);
+            printf("==============> [*] Target hostname: %s.\n", res.target_host_name);
             Host* host = connectToHost(res.target_host_name);
             printf("[*] Host Connected.\n");
             SSL* host_ssl = upgradeToSSL(host->socket);
@@ -130,6 +190,8 @@ int main(){
             params->host = host;
             pthread_t WORKER_ID;
             pthread_create(&WORKER_ID, NULL, workerThread, params);
+        }else{
+            printf("[*] Invalid Request\n");
         }
     }
     
