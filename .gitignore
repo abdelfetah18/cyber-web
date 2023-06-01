@@ -1,0 +1,5 @@
+config
+*.pem
+*.key
+build
+.vscode
