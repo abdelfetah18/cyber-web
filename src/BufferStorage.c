@@ -3,6 +3,7 @@
 BufferStorage* createBufferStorage(){
     BufferStorage* buffer_storage = malloc(sizeof(BufferStorage));
     buffer_storage->data = malloc(sizeof(char) * 8);
+    memset(buffer_storage->data, 0, 8);
     buffer_storage->capacity = 8;
     buffer_storage->size = 0;
     return buffer_storage;
