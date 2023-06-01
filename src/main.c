@@ -18,7 +18,7 @@ typedef struct WorkerParams {
 
 
 void workerThread(void* args){
-    printf("[*] Thread Created Successfuly.\n");
+   printf("[*] Thread Created Successfuly.\n");
 
     WorkerParams* thread_params = (WorkerParams*) args;
 
@@ -33,12 +33,7 @@ void workerThread(void* args){
         memset(buf, 0, MAX_BUFFER_SIZE);
         unsigned int bytes = SSL_read(client_ssl, buf, sizeof(buf));
 
-        // printf("\n==============================[ Request ]==============================\n\n");
-        // printf("%s\n", buf);
-        // printf("\n============================[ End Request ]============================\n\n");
-
         Parser* http_parser = createParser();
-        printf("[*] Prepare for parsing.\n");
         ParserInput input;
         input.data = buf;
         input.size = bytes;
@@ -57,8 +52,7 @@ void workerThread(void* args){
             exit(1);
         }
         
-        printf("[*] Prepare full request buffer.\n");
-        printf("\n[*] Checking Parse Http Request State: %s\n", getParsingState(http_parser->parser_state));
+       printf("\n[*] Checking Parse Http Request State: %s\n", getParsingState(http_parser->parser_state));
 
         BufferStorage* full_request_buffer = createBufferStorage();
         appendToBuffer(full_request_buffer, buf, bytes);
@@ -71,25 +65,15 @@ void workerThread(void* args){
             appendToBuffer(full_request_buffer, buf, bytes);
         }
         
-        printf("[*] Parsing done.\n");
-        
         // Forward http request to the target server.
         SSL_write(host_ssl, full_request_buffer->data, full_request_buffer->size);
         
-        printf("[*] Request sent.\n");
-
         // Receive the Http Response.
         char response_buf[MAX_BUFFER_SIZE];
         memset(response_buf, 0, MAX_BUFFER_SIZE);
 
         bytes = SSL_read(host_ssl, response_buf, MAX_BUFFER_SIZE);
-
-        // printf("\n==============================[ Response ]==============================\n\n");
-        // printf("%s\n", response_buf);
-        // hexPrint(response_buf, bytes);
-        // printf("\n============================[ End Response ]============================\n\n");
-
-
+        
         if(bytes == 0){
             // NOTE: For some reasons if i am not doing this check i got a segfault problem.
             // FIXME: Investigate the issue.
@@ -99,39 +83,27 @@ void workerThread(void* args){
         input.data = response_buf;
         input.size = bytes;
         parseHttpResponse(http_parser, &input);
-        printf("[ parseHttpResponse ]: %s\n", getParsingState(http_parser->parser_state));
+       printf("[*] parseHttpResponse: %s\n", getParsingState(http_parser->parser_state));
         
         
-        printf("[*] Prepare full response buffer.\n");
         BufferStorage* full_response_buffer = createBufferStorage();
         appendToBuffer(full_response_buffer, response_buf, bytes);
 
         while(http_parser->parser_state != PS_DONE){
             memset(response_buf, 0, MAX_BUFFER_SIZE);
             bytes = SSL_read(host_ssl, response_buf, MAX_BUFFER_SIZE);
-            printf("Bytes: %d\n", bytes);
+            printf("[*] Bytes: %d\n", bytes);
             appendToBuffer(full_response_buffer, response_buf, bytes);
             input.data = response_buf;
             input.size = bytes;
             parseHttpResponse(http_parser, &input);
             printf("[*] ParseHttpResponse: %s\n", getParsingState(http_parser->parser_state));
         }
-        
-        printf("[*] Checking Parse Http Response State: %s\n", getParsingState(http_parser->parser_state));
+       
+       printf("[*] Checking Parse Http Response State: %s\n", getParsingState(http_parser->parser_state));
         if(http_parser->parser_state == PS_DONE){
             printf("[*] Parsing Response Done.\n");
-            for(uint index = 0; index < full_response_buffer->size; index += MAX_BUFFER_SIZE){
-                SSL_write(client_ssl, full_response_buffer->data + index, MAX_BUFFER_SIZE);
-                // printf("[x] Index: %u\n", index);
-            }
-            uint t = ((full_response_buffer->size / MAX_BUFFER_SIZE) * MAX_BUFFER_SIZE);
-            SSL_write(client_ssl, full_response_buffer->data + t, full_response_buffer->size % MAX_BUFFER_SIZE);
-
-            // printf("[x] MAX_BUFFER_SIZE: %u\n", MAX_BUFFER_SIZE);
-            printf("[x] full_response_buffer->size: %u\n", full_response_buffer->size);
-
-            uint i = full_response_buffer->size - 5;
-            printf("FINAL_LINE:\n%x %x %x %x %x\n", full_response_buffer->data[i], full_response_buffer->data[i + 1], full_response_buffer->data[i + 2], full_response_buffer->data[i + 3]);
+            SSL_write(client_ssl, full_response_buffer->data, full_response_buffer->size);
         }
         
         close_connection:
@@ -142,11 +114,11 @@ void workerThread(void* args){
         SSL_free(client_ssl);
         close(client);
         close(host);
-        printf("[*] Client connection closed.\n");
-        printf("[*] Host connection closed.\n");
+       printf("[*] Client connection closed.\n");
+       printf("[*] Host connection closed.\n");
     }
     
-    printf("[*] Thread have completed its work.\n");
+   printf("[*] Thread have completed its work.\n");
 }
 
 int main(int argc,char** argv){
@@ -158,30 +130,30 @@ int main(int argc,char** argv){
     printf("[*] Server is up running on port %d.\n", port);
     while(true){
         Client* client = acceptConnections(server->socket);
-        printf("[*] New client. \n");
+       printf("[*] New client. \n");
         RecvData recv_data = receiveData(client->socket);
-        printf("[*] Client has sent some data.\n");
+       printf("[*] Client has sent some data.\n");
         ParserInput parser_input;
         parser_input.data = recv_data.data;
         parser_input.size = recv_data.size;
         HandleDataResult res = handleData(&parser_input);
-        printf("[*] Client data has been handled.\n");
+       printf("[*] Client data has been handled.\n");
         
         if(res.is_valid){
-            printf("==============> [*] Target hostname: %s.\n", res.target_host_name);
+            printf("[*] Target hostname: %s.\n", res.target_host_name);
             Host* host = connectToHost(res.target_host_name);
-            printf("[*] Host Connected.\n");
+           printf("[*] Host Connected.\n");
             SSL* host_ssl = upgradeToSSL(host->socket);
-            printf("[*] Upgrade host connection to SSL.\n");
+           printf("[*] Upgrade host connection to SSL.\n");
             
             const char* reply = "HTTP/1.1 200 Connection established\r\nProxy-agent: CyberWeb\r\n\r\n";
             send(client->socket, reply, strlen(reply), 0);
             
-            printf("[*] Reply with Connection established to the client.\n");
+           printf("[*] Reply with Connection established to the client.\n");
             
             
             SSL* client_ssl = acceptSSLConnection(client->socket, res.target_host_name);
-            printf("[*] Accept Client SSL connection.\n");
+           printf("[*] Accept Client SSL connection.\n");
 
             WorkerParams* params = malloc(sizeof(WorkerParams));
             params->client_ssl = client_ssl;
@@ -191,7 +163,8 @@ int main(int argc,char** argv){
             pthread_t WORKER_ID;
             pthread_create(&WORKER_ID, NULL, workerThread, params);
         }else{
-            printf("[*] Invalid Request\n");
+           printf("[*] Invalid Request. (Http Request not supported yet, only https.)\n");
+            close(client);
         }
     }
     

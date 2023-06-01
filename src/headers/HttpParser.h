@@ -54,7 +54,6 @@ typedef enum {
     PS_FIELD_NAME,
     PS_FIELD_VALUE,
     PS_BODY,
-    PS_CHUNK,
     PS_DONE,
     PS_HTTP_VERSION_NOT_SUPPORTED,
     PS_INVALID
@@ -69,10 +68,13 @@ typedef struct {
     uint response_line_length;
     uint headers_length;
     uint body_length;
-    uint last_saved_chunk_len;
-    uint last_chunk_size;
+    uint expected_body_length;
+    long uint last_saved_chunk_len;
+    long uint last_chunk_size;
+    BufferStorage* last_chunk_size_buffer;
     char* last_field_name;
     char* last_field_value;
+    enum { BS_START, BS_CHUNK_SIZE, BS_CHUNK_CRLF_1, BS_CHUNK_DATA, BS_CHUNK_CRLF_2, BS_CONTENT_LENGTH, BS_DONE } body_state; // FIXME: This is a hack but find a better way to do it.
 } Parser;
 
 typedef struct {
@@ -105,7 +107,8 @@ char* parseFieldName(ParserInput* input,uint* pos);
 char* parseFieldValue(ParserInput* input,uint* pos);
 uint parseHeaders(Parser* parser,ParserInput* input);
 bool doesHaveBody(HTTP_METHOD http_method);
-long uint parseChunckedSize(ParserInput* input,uint* pos);
+uint parseChunckedSize(Parser* parser,ParserInput* input,uint* pos);
+uint parseChunkData(Parser* parser,ParserInput* input,uint* pos);
 uint parseBody(Parser* parser,ParserInput* input);
 
 char* resize_and_cat(char* str1, char* str2);

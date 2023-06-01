@@ -4,55 +4,43 @@ void hexPrint(char* data,uint size){
     printf("\n==============================[ SIZE: %d bytes ]==============================\n", size);
     for(uint i = 0; i < size; i++){
         if(i % 16 == 0)
-            printf("\n");
-        printf("%x ", data[i]);
+           printf("\n");
+       printf("%x ", data[i]);
     }
     printf("\n====================================================================\n");
 }
 
 // Helper functions
 char* getParsingState(ParserState state){
-    switch (state)
-    {
-    case PS_BODY:
-        return "PS_BODY";
-        break;
-    case PS_DONE:
-        return "PS_DONE";
-        break;
-    case PS_FIELD_NAME:
-        return "PS_FIELD_NAME";
-        break;
-    case PS_FIELD_VALUE:
-        return "PS_FIELD_VALUE";
-        break;
-    case PS_HTTP_VERSION_NOT_SUPPORTED:
-        return "PS_HTTP_VERSION_NOT_SUPPORTED";
-        break;
-    case PS_INVALID:
-        return "PS_INVALID";
-        break;
-    case PS_REQUEST_LINE:
-        return "PS_REQUEST_LINE";
-        break;
-    case PS_CHUNK:
-        return "PS_CHUNK";
-        break;
-    default:
-        return "State not exist";
-        break;
+    switch (state){
+        case PS_BODY:
+            return "PS_BODY";
+        case PS_DONE:
+            return "PS_DONE";
+        case PS_FIELD_NAME:
+            return "PS_FIELD_NAME";
+        case PS_FIELD_VALUE:
+            return "PS_FIELD_VALUE";
+        case PS_HTTP_VERSION_NOT_SUPPORTED:
+            return "PS_HTTP_VERSION_NOT_SUPPORTED";
+        case PS_INVALID:
+            return "PS_INVALID";
+        case PS_REQUEST_LINE:
+            return "PS_REQUEST_LINE";
+        default:
+            return "State not exist";
     }
 }
 
 bool isEndOfLine(ParserInput* input,uint pos){
-    return (input->data[pos] == '\r' && input->data[pos+1] == '\n');
+    return (input->data[pos] == '\r' && input->data[pos + 1] == '\n');
 }
 
 bool skipWhiteSpace(ParserInput* input,uint* pos){
-    if(!(input->data[*pos] == ' '))
+    if(!(input->data[(*pos)] == ' '))
         return false;
-    while(input->data[*pos] == ' '){
-        *pos += 1;
+    while(input->data[(*pos)] == ' '){
+        (*pos) += 1;
     }
     return true;
 }
@@ -70,26 +58,26 @@ bool match(ParserInput* input,uint pos,char c){
 }
 
 bool consume(ParserInput* input,uint* pos,char c){
-    if(input->data[*pos] == c){
-        *pos += 1;
+    if(input->data[(*pos)] == c){
+        (*pos) += 1;
         return true;
     }
     return false;
 }
 
 HTTP_METHOD parseHttpMethod(ParserInput* input,uint* pos){
-    if(strncmp(input->data+*pos, "GET", 3) == 0){
-        *pos += 3;
+    if(strncmp(input->data+(*pos), "GET", 3) == 0){
+        (*pos) += 3;
         return HM_GET;
     }
     
-    if(strncmp(input->data+*pos, "POST", 4) == 0){
-        *pos += 4;
+    if(strncmp(input->data+(*pos), "POST", 4) == 0){
+        (*pos) += 4;
         return HM_POST;
     }
     
-    if(strncmp(input->data+*pos, "CONNECT", 7) == 0){
-        *pos += 7;
+    if(strncmp(input->data+(*pos), "CONNECT", 7) == 0){
+        (*pos) += 7;
         return HM_CONNECT;
     }
     // TODO: Support other methods as well.
@@ -98,8 +86,8 @@ HTTP_METHOD parseHttpMethod(ParserInput* input,uint* pos){
 }
 
 HTTP_VERSION parseHttpVersion(ParserInput* input,uint* pos){
-    if(strncmp(input->data+*pos, "HTTP/1.1", 8) == 0){
-        *pos += 8;
+    if(strncmp(input->data+(*pos), "HTTP/1.1", 8) == 0){
+        (*pos) += 8;
         return HV_HTTP_1_1;
     }
 
@@ -109,49 +97,87 @@ HTTP_VERSION parseHttpVersion(ParserInput* input,uint* pos){
 // Passing a pointer to pos to be able to update the acctual pos.
 char* parseFieldName(ParserInput* input,uint* pos){
     uint len = 0;
-    while(!isEOF(input, *pos + len) && !isEndOfLine(input, *pos + len) && !match(input, *pos + len, ' ') && !match(input, *pos + len, ':'))
+    while(!isEOF(input, (*pos) + len) && !isEndOfLine(input, (*pos) + len) && !match(input, (*pos) + len, ' ') && !match(input, (*pos) + len, ':'))
         len += 1;
     
     char* token = malloc((sizeof(char) * (len)) + 1);
-    strncpy(token, input->data + *pos, len);
+    strncpy(token, input->data + (*pos), len);
     token[len] = '\0';
-    *pos += len;
+    (*pos) += len;
     return token;
 }
 
 char* parseFieldValue(ParserInput* input,uint* pos){
     uint len = 0;
-    while(!isEOF(input, *pos + len) && !isEndOfLine(input, *pos + len))
+    while(!isEOF(input, (*pos) + len) && !isEndOfLine(input, (*pos) + len))
         len += 1;
 
     char* token = malloc((sizeof(char) * (len)) + 1);
-    strncpy(token, input->data + *pos, len);
+    strncpy(token, input->data + (*pos), len);
     token[len] = '\0';
-    *pos += len;
+    (*pos) += len;
     
     return token;
 }
 
-long uint parseChunckedSize(ParserInput* input,uint* pos){
+// Helper
+int a2i(char* txt)
+{
+    int sum, digit, i;
+    sum = 0;
+    for (i = 0; i < strlen(txt); i++) {
+        digit = txt[i] - 0x30;
+        sum = (sum * 10) + digit;
+    }
+    return sum;
+}
+
+uint parseChunckedSize(Parser* parser,ParserInput* input,uint* pos){
     uint len = 0;
-    while(*pos + len < input->size && !isEndOfLine(input, *pos + len))
+    while(!isEOF(input, (*pos) + len) && !isEndOfLine(input, (*pos) + len))
         len += 1;
     
-    char* size = malloc(sizeof(char) * (len+1));
-    strncpy(size, input->data+(*pos), len);
-    size[len] = '\0';
+    appendToBuffer(parser->last_chunk_size_buffer, input->data + (*pos), len);
     
-    *pos += len;
-
-    char *endPtr;
-    long uint decimalValue;
-
-    decimalValue = strtol(size, &endPtr, 16);
-
-    if (*endPtr != '\0') {
-        printf("[*] Invalid hexadecimal string\n");
+    (*pos) += len;
+    if(isEOF(input, (*pos))){
+        parser->body_state = BS_CHUNK_SIZE;
+        return 0;
     }
+
+    char* size = malloc(sizeof(char) * (parser->last_chunk_size_buffer->size + 1));
+    memset(size, 0, sizeof(char) * (parser->last_chunk_size_buffer->size + 1));
+    strncpy(size, parser->last_chunk_size_buffer->data, parser->last_chunk_size_buffer->size);
+    memset(parser->last_chunk_size_buffer->data, 0, parser->last_chunk_size_buffer->capacity);
+    parser->last_chunk_size_buffer->size = 0;
+
+    uint decimalValue = strtol(size, NULL, 16);
+
+    if(decimalValue == 0){
+        parser->parser_state = PS_DONE;
+    }
+
+    parser->body_state = BS_CHUNK_CRLF_1;
+    parser->last_chunk_size = decimalValue;
+    parser->last_saved_chunk_len = 0;
+
     return decimalValue;
+}
+
+uint parseChunkData(Parser* parser,ParserInput* input,uint* pos){
+    uint len = 0;
+    while(!isEOF(input, (*pos) + len) && (parser->last_saved_chunk_len + len < parser->last_chunk_size))
+        len += 1;
+    
+    (*pos) += len;
+    parser->last_saved_chunk_len += len;
+    
+    if(parser->last_chunk_size == parser->last_saved_chunk_len)
+        parser->body_state = BS_CHUNK_CRLF_2;
+    else
+        parser->body_state = BS_CHUNK_DATA;
+    
+    return len;
 }
 
 char* resize_and_cat(char* str1, char* str2){
@@ -175,6 +201,9 @@ Parser* createParser(){
 
     parser->http_request->body = createBufferStorage();
     parser->http_response->body = createBufferStorage();
+    parser->last_chunk_size_buffer = createBufferStorage();
+    memset(parser->last_chunk_size_buffer->data, 0, parser->last_chunk_size_buffer->capacity);
+
 
     parser->parser_state = PS_REQUEST_LINE;
     return parser;
@@ -215,13 +244,13 @@ HttpHeaders* createHeader(HttpHeader header){
 
 char* parseResourcePath(ParserInput* input,uint* pos){
     uint len = 0;
-    while(!isEOF(input, *pos + len) && !match(input, *pos + len, ' ') && !isEndOfLine(input, *pos + len))
+    while(!isEOF(input, (*pos) + len) && !match(input, (*pos) + len, ' ') && !isEndOfLine(input, (*pos) + len))
         len += 1;
     
     char* resource_path = malloc(sizeof(char) * (len+1));
-    strncpy(resource_path, input->data + *pos, len);
+    strncpy(resource_path, input->data + (*pos), len);
     resource_path[len] = '\0';
-    *pos += len;
+    (*pos) += len;
 
     return resource_path;
 }
@@ -230,9 +259,8 @@ char* parseResourcePath(ParserInput* input,uint* pos){
 void parseRequestLine(Parser* parser,ParserInput* input){
     uint pos = 0;
 
-   // Parse HttpMethod
+    // Parse HttpMethod
     // NOTE: We are passing a pointer to a position which mean we also consume that token.
-    printf("[*] Parsing Http Method.\n");
     HTTP_METHOD http_method = parseHttpMethod(input, &pos);
     if(http_method == HM_INVALID){
         parser->parser_state = PS_INVALID;
@@ -246,7 +274,6 @@ void parseRequestLine(Parser* parser,ParserInput* input){
     }
         
     // Parse Resource Path.
-    printf("[*] Parsing Resource Path.\n");
     char* resource_path = parseResourcePath(input, &pos);
     parser->http_request->resource_path = resource_path;
     
@@ -256,13 +283,11 @@ void parseRequestLine(Parser* parser,ParserInput* input){
     }
 
     // Parse http version
-    printf("[*] Parsing Http Version.\n");
     HTTP_VERSION http_version = parseHttpVersion(input, &pos);
     if(http_version == HV_NOT_SUPPORTED){
         parser->parser_state = PS_HTTP_VERSION_NOT_SUPPORTED;
         return;
     }
-    
     if(isEndOfLine(input, pos)){
         pos += 2;
         parser->headers_length = 0;
@@ -282,22 +307,19 @@ void parseHttpRequest(Parser* parser,ParserInput* input){
         input->size -= parser->request_line_length;
     }
 
-    if(parser->parser_state == PS_FIELD_NAME || parser->parser_state == PS_FIELD_VALUE){
-        printf("[*] Parsing Http Headers.\n");
-        
+    if(parser->parser_state == PS_FIELD_NAME || parser->parser_state == PS_FIELD_VALUE){        
         // NOTE: If the parser state was at field_name or field_value we need to check the saved value
         //       and continue parsing and adding it to that value.
         
         // FieldName -> (WhiteSpace) -> SemiCol -> (WhiteSpace) -> FieldValue -> HttpBody
 
         uint cur_parsed_headers_len = parseHeaders(parser, input);
-        printf("[*] Done with Http Headers.\n");
 
         // FIXME: This code has a memory leak issues.
         input->data += cur_parsed_headers_len;
         input->size -= cur_parsed_headers_len;
     }
-    if(parser->parser_state == PS_BODY || parser->parser_state == PS_CHUNK){
+    if(parser->parser_state == PS_BODY){
         parseBody(parser, input);
     }  
 }
@@ -305,24 +327,24 @@ void parseHttpRequest(Parser* parser,ParserInput* input){
 char* parseStatusCode(ParserInput* input,uint* pos){
     char* status_code = malloc(sizeof(char) * 4);
     uint status_code_len = 0;
-    while(input->data[*pos + status_code_len] >= '0' && input->data[*pos + status_code_len] <= '9'){
-        status_code[status_code_len] = input->data[*pos + status_code_len];
+    while(input->data[(*pos) + status_code_len] >= '0' && input->data[(*pos) + status_code_len] <= '9'){
+        status_code[status_code_len] = input->data[(*pos) + status_code_len];
         status_code_len += 1;
     }
     status_code[status_code_len] = '\0';
-    *pos += status_code_len;
+    (*pos) += status_code_len;
     return status_code;
 }
 
 char* parseReasonPhrase(ParserInput* input,uint* pos){
     uint len = 0;
-    while(!isEOF(input, *pos + len) && !isEndOfLine(input, *pos + len))
+    while(!isEOF(input, (*pos) + len) && !isEndOfLine(input, (*pos) + len))
         len += 1;
     
     char* reason_phrase = malloc(sizeof(char) * (len+1));
-    strncpy(reason_phrase, input->data + *pos, len);
+    strncpy(reason_phrase, input->data + (*pos), len);
     reason_phrase[len] = '\0';
-    *pos += len;
+    (*pos) += len;
 
     return reason_phrase;
 }
@@ -350,7 +372,6 @@ void parseResponseLine(Parser* parser,ParserInput* input){
         parser->parser_state = PS_INVALID;
         return;
     }
-        
     // Parse reason phrase.
     char* reason_phrase = parseReasonPhrase(input, &pos);
     parser->http_response->reason_phrase = reason_phrase;
@@ -390,7 +411,7 @@ uint parseHeaders(Parser* parser,ParserInput* input){
             pos += 2;
 
         if(isEOF(input, pos))
-            return;
+            return pos;
 
         if(parser->parser_state == PS_FIELD_NAME){
             char* field_name = parseFieldName(input, &pos);
@@ -406,10 +427,10 @@ uint parseHeaders(Parser* parser,ParserInput* input){
                 skipWhiteSpace(input, &pos);
                 parser->parser_state = PS_FIELD_VALUE;
             }else if(isEOF(input, pos)){
-                return;
+                return pos;
             }else{
                 parser->parser_state = PS_INVALID;
-                return;
+                return pos;
             }
         }
 
@@ -424,7 +445,7 @@ uint parseHeaders(Parser* parser,ParserInput* input){
                 parser->last_field_value = field_value;
             }
             if(!isEndOfLine(input, pos)){
-                return;
+                return pos;
             }else{
                 HttpHeader http_header;
                 http_header.field_name = parser->last_field_name;
@@ -444,13 +465,13 @@ uint parseHeaders(Parser* parser,ParserInput* input){
     }
 
     if(pos >= input->size)
-            return;
+            return pos;
     else if(isDoubleEndOfLine(input, pos)){
         pos += 4;
     }else{
         // Return and close the connection expected Double EndOfLine.
         parser->parser_state = PS_INVALID;
-        return;
+        return pos;
     }
     
     parser->headers_length = pos;
@@ -458,6 +479,7 @@ uint parseHeaders(Parser* parser,ParserInput* input){
     if(doesHaveBody(parser->http_request->method) || parser->state == S_RESPONSE){
         parser->body_length = 0;
         parser->parser_state = PS_BODY;
+        parser->body_state = BS_START;
     }else{
         // FIXME: implement a state to tell if we are parsing request or response.
         parser->parser_state = PS_DONE;
@@ -467,128 +489,90 @@ uint parseHeaders(Parser* parser,ParserInput* input){
 }
 
 uint parseBody(Parser* parser,ParserInput* input){
-    printf("[*] Parsing Message Body.\n");
-    // hexPrint(input->data, input->size);
     // TODO: Add support for json and xml.
-    // FIXME: Adding support for Chunked Content-Type where the size of the body is not stored at 'Content-Length' header field.
-    char* content_length = NULL;
-    if(parser->state == S_REQUEST)
-        content_length = getHeader(parser->http_request->headers, "Content-Length");
-    else
-        content_length = getHeader(parser->http_response->headers, "Content-Length");
-    
     uint pos = 0;
-    if(content_length != NULL){
-        printf("[*] There is a Content-Length header with value: %s.\n", content_length);
-        uint body_length = atoi(content_length);
+    if(parser->body_state == BS_START){
+        parser->body_length = 0;
+        char* content_length = NULL;
+        if(parser->state == S_REQUEST)
+            content_length = getHeader(parser->http_request->headers, "Content-Length");
+        else
+            content_length = getHeader(parser->http_response->headers, "Content-Length");
+        
+        if(content_length != NULL){
+            parser->body_state = BS_CONTENT_LENGTH;
+           printf("[*] There is a Content-Length header with value: %s.\n", content_length);
+            uint body_length = atoi(content_length);
+            parser->expected_body_length = body_length; 
+        }else{
+           printf("[*] There is No Content-Length header.\n");
+            char* transfer_encoding = NULL;
+            if(parser->state == S_REQUEST)
+                transfer_encoding = getHeader(parser->http_request->headers, "Transfer-Encoding");
+            else
+                transfer_encoding = getHeader(parser->http_response->headers, "Transfer-Encoding");
+            
+            if(transfer_encoding != NULL){
+                parser->body_state = BS_CHUNK_SIZE;
+               printf("[*] Found Transfer-Encoding header.\n");
+            }else{
+               printf("\n========================> %d %d %s <========================\n", parser->http_response->http_version, parser->http_response->status_code, parser->http_response->reason_phrase);
+               printf("[*] There is No Transfer-Encoding header.\n");
+                parser->parser_state = PS_DONE;
+            }
+        }
+
+    }
+
+    if(parser->body_state == BS_CONTENT_LENGTH){
         while(!isEOF(input, pos))
             pos++;
-        
-        if(pos == 0 && body_length != 0){
-            return;
-        }
-
-        if(parser->state == S_REQUEST)
-            appendToBuffer(parser->http_request->body, input->data, pos);
-        else
-            appendToBuffer(parser->http_response->body, input->data, pos);
-        
         parser->body_length += pos;
-        
-        if(parser->body_length == body_length)
+        if(parser->body_length == parser->expected_body_length){
+            parser->body_state = BS_DONE;
             parser->parser_state = PS_DONE;
-    }else{
-        printf("[*] There is No Content-Length header.\n");
-        char* transfer_encoding = NULL;
-        if(parser->state == S_REQUEST)
-            transfer_encoding = getHeader(parser->http_request->headers, "Transfer-Encoding");
-        else
-            transfer_encoding = getHeader(parser->http_response->headers, "Transfer-Encoding");
-        
-        if(transfer_encoding != NULL){
-            printf("[*] Found Transfer-Encoding header.\n");
-            printf("[*] LastState: %s\n", getParsingState(parser->parser_state));
-            
-            /*
-                field_name -> : -> field_value -> CRLF
-                ChunckSize -> CRLF -> ChunckData -> CRLF
-
-                ParserState:
-                    headers -> field_name | field_value
-                    body -> normal_body | chuck_size | chunck_value
-                parseRequestLine -> RequestLine
-                parseHeaders -> Headers
-                parseBody -> Body
-
-            */
-            
-            if(parser->parser_state == PS_CHUNK){
-                uint len = 0;
-                while(pos + len < input->size && (parser->last_saved_chunk_len + len) < parser->last_chunk_size){
-                    len += 1;
-                }
-                pos += len;
-                parser->last_saved_chunk_len += len;
-                if(parser->last_saved_chunk_len != parser->last_chunk_size){
-                    parser->parser_state = PS_CHUNK;
-                }else{
-                    if(isEndOfLine(input->data, pos)){
-                        pos += 2;
-                    }
-                    parser->parser_state = PS_BODY;
-                }
-            }else{
-                long uint size = parseChunckedSize(input, &pos);
-                parser->last_chunk_size = size;
-                printf("[*] Chunk Size: %lu\n", size);
-                if(size == 0){
-                    printf("[*] Done with chunks.\n");
-                    parser->parser_state = PS_DONE;
-                    if(isEndOfLine(input->data, pos)){
-                        pos += 2;
-                    }
-                }else{
-                    if(isEndOfLine(input->data, pos)){
-                        pos += 2;
-                    }
-                    uint len = 0;
-                    while(pos + len < input->size && len < size){
-                        len += 1;
-                    }
-                    pos += len;
-                    parser->last_saved_chunk_len = len;
-                    if(len != size){
-                        parser->parser_state = PS_CHUNK;
-                    }else{
-                        if(isEndOfLine(input->data, pos)){
-                            pos += 2;
-                        }
-                    }
-                }
-            }
-            
-            /*
-            while(!isEOF(input, pos) && !isDoubleEndOfLine(input, pos))
-                pos += 1;
-            
-            if(isDoubleEndOfLine(input, pos))
-                parser->parser_state = PS_DONE;
-            
-            */
-            
-            if(parser->state == S_REQUEST)
-                appendToBuffer(parser->http_request->body, input->data, input->size);
-            else
-                appendToBuffer(parser->http_response->body, input->data, input->size);
         }
+        else
+            parser->body_state = BS_CONTENT_LENGTH;
     }
+
+    while(!isEOF(input, pos)){
+        if(parser->body_state == BS_CHUNK_SIZE)
+            parseChunckedSize(parser, input, &pos);
+
+        if(parser->body_state == BS_CHUNK_CRLF_1){
+            if(isEndOfLine(input, pos))
+                pos += 2;
+            if(parser->parser_state != PS_DONE)
+                parser->body_state = BS_CHUNK_DATA;
+            else
+                parser->body_state = BS_DONE;
+        }
+
+        if(parser->body_state == BS_CHUNK_DATA)
+            parseChunkData(parser, input, &pos);
+
+        if(parser->body_state == BS_CHUNK_CRLF_2){
+            if(isEndOfLine(input, pos))
+                pos += 2;
+            parser->body_state = BS_CHUNK_SIZE;
+        }
+
+        if(isEndOfLine(input, pos))
+            pos += 2;
+    }
+
+    if(parser->state == S_REQUEST)
+        appendToBuffer(parser->http_request->body, input->data, input->size);
+    else
+        appendToBuffer(parser->http_response->body, input->data, input->size);
 
     return pos;
 }
 
 void parseHttpResponse(Parser* parser,ParserInput* input){
     parser->state = S_RESPONSE;
-    printf("[*] Parse Http Response.\n");
+   printf("[*] Parse Http Response.\n");
 
     if(parser->parser_state == PS_REQUEST_LINE){
         parseResponseLine(parser, input);
@@ -611,7 +595,7 @@ void parseHttpResponse(Parser* parser,ParserInput* input){
         input->size -= cur_parsed_headers_len;
     }
 
-    if(parser->parser_state == PS_BODY || parser->parser_state == PS_CHUNK){
+    if(parser->parser_state == PS_BODY){
         parseBody(parser, input);
     }    
 }
