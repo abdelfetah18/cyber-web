@@ -15,6 +15,7 @@ typedef struct
 
 
 BufferStorage* createBufferStorage();
+void freeBufferStorage(BufferStorage* buffer);
 void appendToBuffer(BufferStorage* buffer,char* data,uint size);
 
 #endif

@@ -9,6 +9,15 @@ BufferStorage* createBufferStorage(){
     return buffer_storage;
 }
 
+void freeBufferStorage(BufferStorage* buffer){
+    if(buffer->data != NULL){
+        free(buffer->data);
+        buffer->data = NULL;
+        buffer->size = 0;
+        buffer->capacity = 0;
+    }
+}
+
 void appendToBuffer(BufferStorage* buffer,char* data,uint size){
     if((buffer->size + size) < buffer->capacity){
         memcpy(buffer->data + buffer->size, data, size);
