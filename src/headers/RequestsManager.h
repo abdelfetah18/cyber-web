@@ -7,6 +7,7 @@
 
 typedef struct HandleDataResult {
     bool is_valid;
+    bool is_https;
     char* target_host_name;
 } HandleDataResult;
 

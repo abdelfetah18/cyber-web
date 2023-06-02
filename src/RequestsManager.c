@@ -28,14 +28,18 @@ HandleDataResult handleData(ParserInput* input){
 
     if(parser->parser_state == PS_DONE){
         printf("[*] Parsing Done.\n");
+        result.is_valid = true;
+        result.target_host_name = parser->http_request->resource_path;
         if(parser->http_request->method == HM_CONNECT){
             printf("[*] Its a CONNECT Request.\n");
             // Get for the certificate.
             char* host_name = getHostNameFromTargetHostname(parser->http_request->resource_path);
             char* certificate = getCertificate(host_name);
             // Return.
-            result.is_valid = true;
-            result.target_host_name = parser->http_request->resource_path;
+            result.is_https = true;
+            return result;
+        }else{
+            result.is_https = false;
             return result;
         }
     }else{

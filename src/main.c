@@ -114,8 +114,8 @@ void workerThread(void* args){
         SSL_free(client_ssl);
         close(client);
         close(host);
-       printf("[*] Client connection closed.\n");
-       printf("[*] Host connection closed.\n");
+        printf("[*] Client connection closed.\n");
+        printf("[*] Host connection closed.\n");
     }
     
    printf("[*] Thread have completed its work.\n");
@@ -130,40 +130,78 @@ int main(int argc,char** argv){
     printf("[*] Server is up running on port %d.\n", port);
     while(true){
         Client* client = acceptConnections(server->socket);
-       printf("[*] New client. \n");
+        printf("[*] New client. \n");
         RecvData recv_data = receiveData(client->socket);
-       printf("[*] Client has sent some data.\n");
+        printf("[*] Client has sent some data.\n");
         ParserInput parser_input;
         parser_input.data = recv_data.data;
         parser_input.size = recv_data.size;
         HandleDataResult res = handleData(&parser_input);
-       printf("[*] Client data has been handled.\n");
+        printf("[*] Client data has been handled.\n");
         
         if(res.is_valid){
-            printf("[*] Target hostname: %s.\n", res.target_host_name);
-            Host* host = connectToHost(res.target_host_name);
-           printf("[*] Host Connected.\n");
-            SSL* host_ssl = upgradeToSSL(host->socket);
-           printf("[*] Upgrade host connection to SSL.\n");
-            
-            const char* reply = "HTTP/1.1 200 Connection established\r\nProxy-agent: CyberWeb\r\n\r\n";
-            send(client->socket, reply, strlen(reply), 0);
-            
-           printf("[*] Reply with Connection established to the client.\n");
-            
-            
-            SSL* client_ssl = acceptSSLConnection(client->socket, res.target_host_name);
-           printf("[*] Accept Client SSL connection.\n");
+            if(res.is_https){
+                printf("[*] Target hostname: %s.\n", res.target_host_name);
+                Host* host = connectToHost(res.target_host_name);
+                printf("[*] Host Connected.\n");
+                SSL* host_ssl = upgradeToSSL(host->socket);
+                printf("[*] Upgrade host connection to SSL.\n");
+                
+                const char* reply = "HTTP/1.1 200 Connection established\r\nProxy-agent: CyberWeb\r\n\r\n";
+                send(client->socket, reply, strlen(reply), 0);
+                
+                printf("[*] Reply with Connection established to the client.\n");
+                
+                
+                SSL* client_ssl = acceptSSLConnection(client->socket, res.target_host_name);
+                printf("[*] Accept Client SSL connection.\n");
 
-            WorkerParams* params = malloc(sizeof(WorkerParams));
-            params->client_ssl = client_ssl;
-            params->client = client;
-            params->host_ssl = host_ssl;
-            params->host = host;
-            pthread_t WORKER_ID;
-            pthread_create(&WORKER_ID, NULL, workerThread, params);
+                WorkerParams* params = malloc(sizeof(WorkerParams));
+                params->client_ssl = client_ssl;
+                params->client = client;
+                params->host_ssl = host_ssl;
+                params->host = host;
+                pthread_t WORKER_ID;
+                pthread_create(&WORKER_ID, NULL, workerThread, params);
+            }else{
+                if(strcmp(res.target_host_name, "/getCert") == 0){
+                    // Open File.
+                    FILE* f = fopen("hosts/CyberWeb.crt", "r");
+                    // GetSize.
+                    fseek(f, 0L, SEEK_END);
+                    uint file_size = ftell(f);
+                    rewind(f);
+                    // Read File to a Buffer.
+                    char* file_content = malloc(sizeof(char) * (file_size + 1));
+                    memset(file_content, 0 , sizeof(char) * (file_size + 1));
+                    fread(file_content, sizeof(char), file_size, f);
+                    // Convert Size To ascii.
+                    char file_size_buffer[10];
+                    memset(file_size_buffer, 0, 10);
+                    sprintf(file_size_buffer, "%d", file_size);
+                    // itoa(file_size, file_size_buffer, 10);
+                    // Prepare Response.
+                    const char* reply_p1 = "HTTP/1.1 200 OK\r\n"
+                    "Proxy-agent: CyberWeb\r\n"
+                    "Content-Disposition: attachment; filename=\"CyberWeb.crt\"\r\n"
+                    "Content-Length: ";
+                    BufferStorage* reply_buffer = createBufferStorage();
+                    appendToBuffer(reply_buffer, reply_p1, 113);
+                    appendToBuffer(reply_buffer, file_size_buffer, strlen(file_size_buffer));
+                    appendToBuffer(reply_buffer, "\r\n\r\n", 4);
+                    appendToBuffer(reply_buffer, file_content, file_size);
+                    appendToBuffer(reply_buffer, "\r\n\r\n", 4);
+                    
+                    // Reply.
+                    printf("\n\nGetCert.\n\n");
+                    send(client->socket, reply_buffer->data, reply_buffer->size, 0);
+                }else{
+                    printf("[*] Http Request is not supported yet.\n");
+                }
+                close(client);
+            }
         }else{
-           printf("[*] Invalid Request. (Http Request not supported yet, only https.)\n");
+            printf("[*] Invalid Request.\n");
             close(client);
         }
     }
