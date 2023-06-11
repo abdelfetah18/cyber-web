@@ -10,6 +10,15 @@ void hexPrint(char* data,uint size){
     printf("\n====================================================================\n");
 }
 
+ParserResult* createParserResult(Parser* parser,BufferStorage* full_raw_data){
+    ParserResult* parser_result = malloc(sizeof(ParserResult));
+
+    parser_result->full_raw_data = full_raw_data;
+    parser_result->parser = parser;
+
+    return parser_result;
+}
+
 // Helper functions
 char* getParsingState(ParserState state){
     switch (state){
@@ -314,7 +323,6 @@ void parseHttpRequest(Parser* parser,ParserInput* input){
         // FieldName -> (WhiteSpace) -> SemiCol -> (WhiteSpace) -> FieldValue -> HttpBody
 
         uint cur_parsed_headers_len = parseHeaders(parser, input);
-
         // FIXME: This code has a memory leak issues.
         input->data += cur_parsed_headers_len;
         input->size -= cur_parsed_headers_len;
@@ -598,6 +606,13 @@ void parseHttpResponse(Parser* parser,ParserInput* input){
     if(parser->parser_state == PS_BODY){
         parseBody(parser, input);
     }    
+}
+
+ParserInput createParserInput(char* data,uint size){
+    ParserInput input;
+    input.data = data;
+    input.size = size;
+    return input;
 }
 
 /*

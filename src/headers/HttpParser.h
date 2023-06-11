@@ -82,6 +82,12 @@ typedef struct {
     uint size;
 } ParserInput;
 
+typedef struct {
+    Parser* parser;
+    BufferStorage* full_raw_data;
+} ParserResult;
+
+
 void parseHttpRequest(Parser* parser,ParserInput* input);
 void parseHttpResponse(Parser* parser,ParserInput* input);
 
@@ -90,6 +96,7 @@ void appendHeader(HttpHeaders** arr,HttpHeader header);
 char* getHeader(HttpHeaders* arr,char* field_name);
 
 // Helper functions
+ParserInput createParserInput(char* data,uint size);
 char* getParsingState(ParserState state);
 bool isEndOfLine(ParserInput* input,uint pos);
 bool isDoubleEndOfLine(ParserInput* input,uint pos);
@@ -114,7 +121,8 @@ uint parseBody(Parser* parser,ParserInput* input);
 char* resize_and_cat(char* str1, char* str2);
 Parser* createParser();
 
-void hexPrint(char* data,uint size);
+ParserResult* createParserResult(Parser* parser,BufferStorage* full_raw_data);
 
+void hexPrint(char* data,uint size);
 
 #endif

@@ -1,11 +1,34 @@
 #include "headers/CertificateManager.h"
 
-void createRootCertificate(){
-    EVP_PKEY *pkey = EVP_PKEY_new();
-    X509 *x509 = X509_new();
+bool doesRootCertificateExists(){
+    FILE* file = fopen("hosts/CyberWeb.crt", "r");
+    if (file != NULL) {
+        fclose(file);
+        return true;
+    }
+    return false;
+}
 
-    // Generate private key
-    EVP_PKEY_keygen(pkey, EVP_PKEY_RSA);
+void createRootCertificate(){
+    // Generate a new private key
+    EVP_PKEY *pkey = EVP_PKEY_new();
+    if (!pkey) {
+        fprintf(stderr, "Error generating private key.\n");
+        exit(1);
+    }
+
+    // Generate a new private key
+    RSA *rsa = RSA_new();
+    BIGNUM *bn = BN_new();
+    if (!rsa || !bn) {
+        fprintf(stderr, "Error generating private key.\n");
+        exit(1);
+    }
+    BN_set_word(bn, RSA_F4);
+    RSA_generate_key_ex(rsa, 2048, bn, NULL);
+    EVP_PKEY_assign_RSA(pkey, rsa);
+
+    X509 *x509 = X509_new();
 
     // Set certificate version and serial number
     X509_set_version(x509, 2);
@@ -14,10 +37,70 @@ void createRootCertificate(){
     // Set issuer and subject names
     X509_NAME *name = X509_get_subject_name(x509);
     X509_NAME_add_entry_by_txt(name, "CN", MBSTRING_ASC, (unsigned char *)"Cyber Web", -1, -1, 0);
+    X509_set_issuer_name(x509, name);
 
     // Set validity period
     X509_gmtime_adj(X509_get_notBefore(x509), 0);
     X509_gmtime_adj(X509_get_notAfter(x509), 31536000L);
+
+    BASIC_CONSTRAINTS* bc = BASIC_CONSTRAINTS_new();
+    bc->ca = 1;
+    bc->pathlen = 0;
+    unsigned char* bcData = NULL;
+
+    int bcDataLength = i2d_BASIC_CONSTRAINTS(bc, &bcData);
+    
+    printf("len: %d\n", bcDataLength);
+    ASN1_OCTET_STRING* extData = ASN1_OCTET_STRING_new();
+    ASN1_OCTET_STRING_set(extData, bcData, bcDataLength);
+
+    X509_EXTENSION* ext__ = X509_EXTENSION_new();
+    X509_EXTENSION_set_data(ext__, extData);
+    X509_EXTENSION_set_object(ext__, OBJ_nid2obj(NID_basic_constraints));
+    X509_add_ext(x509, ext__, -1);
+
+
+    ASN1_OCTET_STRING* constraint = ASN1_OCTET_STRING_new();
+    ASN1_OCTET_STRING_set(constraint, "CA:TRUE", 7);
+    // Create a basic constraints extension with CA:TRUE
+    X509_EXTENSION* ext = X509_EXTENSION_create_by_NID(NULL, NID_basic_constraints, 0, constraint);
+    X509_EXTENSION_set_critical(ext, 1);
+    
+    // Add the extension to the certificate
+    X509_add_ext(x509, ext, -1);
+
+    
+
+    // Create Authority Key.
+    unsigned char AUTHORITY_KEY[20];
+    int alen = 20;
+    memset(AUTHORITY_KEY, 0, 20);
+    AUTHORITY_KEYID* auth_key = AUTHORITY_KEYID_new();
+    auth_key->keyid = X509_pubkey_digest(x509, EVP_sha1(), AUTHORITY_KEY, &alen);
+    unsigned char AUTHORITY_KEY_BUFFER[40];
+    memset(AUTHORITY_KEY_BUFFER, 0, 40);
+    for(int i = 0; i < 20; i++){
+        sprintf(AUTHORITY_KEY_BUFFER+(i*2),"%02x", AUTHORITY_KEY[i]);
+    }
+    printf("%s\n", AUTHORITY_KEY_BUFFER);
+    ASN1_OCTET_STRING* authority_keyid = ASN1_OCTET_STRING_new();
+    ASN1_OCTET_STRING_set(authority_keyid, AUTHORITY_KEY_BUFFER, 40);
+    
+    // Create the extension with the authority key identifier structure
+    X509_EXTENSION* ext_1 = X509_EXTENSION_create_by_NID(NULL, NID_authority_key_identifier, 0, authority_keyid);
+    X509_EXTENSION* ext_2 = X509_EXTENSION_create_by_NID(NULL, NID_subject_key_identifier, 0, authority_keyid);
+
+    // Add the extension to the certificate
+    X509_add_ext(x509, ext_1, -1);
+    X509_add_ext(x509, ext_2, -1);
+
+    // Add Key Usage
+    ASN1_OCTET_STRING* key_usage = ASN1_OCTET_STRING_new();
+    ASN1_OCTET_STRING_set(key_usage, "Certificate Sign, CRL Sign", 26);
+    // Create a basic constraints extension with CA:TRUE
+    X509_EXTENSION* ext_3 = X509_EXTENSION_create_by_NID(NULL, NID_key_usage, 0, key_usage);
+    X509_EXTENSION_set_critical(ext_3, 1);
+    X509_add_ext(x509, ext_3, -1);
 
     // Set public key
     X509_set_pubkey(x509, pkey);
@@ -25,89 +108,23 @@ void createRootCertificate(){
     // Sign the certificate with private key
     X509_sign(x509, pkey, EVP_sha256());
 
+    
+    int is_ca = X509_check_ca(x509);
+    printf("CA: %d\n", is_ca);
+
     // Save certificate to file
-    FILE *file = fopen("hosts/CyberWeb_RootCA.crt", "wb");
+    FILE *file = fopen("hosts/CyberWeb.crt", "wb");
     PEM_write_X509(file, x509);
     fclose(file);
 
     // Save private key to file
-    FILE *keyFile = fopen("hosts/CyberWeb_RootCA.key", "wb");
+    FILE *keyFile = fopen("hosts/CyberWeb.key", "wb");
     PEM_write_PrivateKey(keyFile, pkey, NULL, NULL, 0, NULL, NULL);
     fclose(keyFile);
 
     // Clean up
     X509_free(x509);
     EVP_PKEY_free(pkey);
-}
-
-void createCertificate(char* host){
-    X509 *cert = NULL;
-    EVP_PKEY *pkey = NULL;
-    X509_NAME *subj = NULL;
-    int days = 365;
-    int serial = 1;
-
-    // Initialize OpenSSL
-    OpenSSL_add_all_algorithms();
-    ERR_load_BIO_strings();
-    ERR_load_crypto_strings();
-
-    // Generate a new private key
-    pkey = EVP_PKEY_new();
-    if (!pkey) {
-        fprintf(stderr, "Error generating private key.\n");
-        exit(1);
-    }
-
-    // Generate a new certificate
-    cert = X509_new();
-    if (!cert) {
-        fprintf(stderr, "Error generating certificate.\n");
-        exit(1);
-    }
-
-    // Set the certificate's serial number
-    ASN1_INTEGER_set(X509_get_serialNumber(cert), serial);
-
-    // Set the certificate's validity period
-    X509_gmtime_adj(X509_get_notBefore(cert), 0);
-    X509_gmtime_adj(X509_get_notAfter(cert), days * 24 * 60 * 60);
-
-    // Set the certificate's subject
-    subj = X509_NAME_new();
-    X509_NAME_add_entry_by_txt(subj, "CN", MBSTRING_ASC, (unsigned char*) host, -1, -1, 0);
-    X509_set_subject_name(cert, subj);
-
-    // Set the certificate's issuer (self-signed)
-    X509_set_issuer_name(cert, subj);
-
-    // Set the certificate's public key
-    X509_set_pubkey(cert, pkey);
-
-    // Sign the certificate with the private key
-    if (!X509_sign(cert, pkey, EVP_sha256())) {
-        fprintf(stderr, "Error signing certificate.\n");
-        exit(1);
-    }
-
-    // Write the certificate to a file
-    FILE *fp = fopen("hosts/wildcard.crt", "wb");
-    if (!fp) {
-        fprintf(stderr, "Error opening certificate file for writing.\n");
-        exit(1);
-    }
-    PEM_write_X509(fp, cert);
-    fclose(fp);
-
-    // Save private key to file
-    FILE *keyFile = fopen("hosts/wildcard.key", "wb");
-    PEM_write_PrivateKey(keyFile, pkey, NULL, NULL, 0, NULL, NULL);
-    fclose(keyFile);
-
-    // Clean up
-    X509_free(cert);
-    EVP_PKEY_free(pkey);
-    X509_NAME_free(subj);
 }
 
 void createAndSignACertificate(char* hostname){

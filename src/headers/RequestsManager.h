@@ -2,8 +2,8 @@
 #define REQUESTS_MANAGER
 
 #include <stdbool.h>
+
 #include "HttpParser.h"
-#include "CertificateManager.h"
 
 typedef struct HandleDataResult {
     bool is_valid;

@@ -182,3 +182,81 @@ SSL* upgradeToSSL(SOCKET_HANDLE connection){
 void sendData(SOCKET_HANDLE socket_fd){
     // TODO: In case of Http Client.   
 }
+
+Peers createPeers(SSL* client_ssl,SOCKET_HANDLE client,SSL* host_ssl,SOCKET_HANDLE host){
+    Peers peers;
+    peers.client_ssl = client_ssl;
+    peers.client = client;
+    peers.host_ssl = host_ssl;
+    peers.host = host;
+    return peers;
+}
+
+ParserResult* receiveFullHttpRequest(SSL* client_ssl,Peers* peers){
+    // 1. Recieve client http request.
+    char buf[MAX_BUFFER_SIZE];
+    memset(buf, 0, MAX_BUFFER_SIZE);
+    unsigned int bytes = SSL_read(client_ssl, buf, MAX_BUFFER_SIZE);
+
+    Parser* http_parser = createParser();
+    ParserInput input = createParserInput(buf, bytes);
+    parseHttpRequest(http_parser, &input);
+    printf("\n[*] Http Request State: %s\n", getParsingState(http_parser->parser_state));
+    if(http_parser->parser_state == PS_INVALID){
+        printf("[*] Invalid Data.\n");
+        printf("\n\n%s\n\n", buf);
+        closePeersConnectionsAndExit(peers);
+    }
+    
+    printf("\n[*] Checking Parse Http Request State: %s\n", getParsingState(http_parser->parser_state));
+
+    BufferStorage* full_request_buffer = createBufferStorage();
+    appendToBuffer(full_request_buffer, buf, bytes);
+    while(http_parser->parser_state != PS_DONE){
+        memset(buf, 0, MAX_BUFFER_SIZE);
+        bytes = SSL_read(client_ssl, buf, sizeof(buf));
+        input.data = buf;
+        input.size = bytes;
+        parseHttpRequest(http_parser, &input);
+        appendToBuffer(full_request_buffer, buf, bytes);
+    }
+
+
+    return  createParserResult(http_parser, full_request_buffer);
+}
+
+ParserResult* receiveFullHttpResponse(SSL* host_ssl,Peers* peers){
+    // Receive the Http Response.
+    char response_buf[MAX_BUFFER_SIZE];
+    memset(response_buf, 0, MAX_BUFFER_SIZE);
+
+    uint bytes = SSL_read(host_ssl, response_buf, MAX_BUFFER_SIZE);
+    
+    if(bytes == 0){
+        // NOTE: For some reasons if i am not doing this check i got a segfault problem.
+        // FIXME: Investigate the issue.
+        closePeersConnectionsAndExit(peers);
+    }
+
+    Parser* http_parser = createParser();
+    ParserInput input = createParserInput(response_buf, bytes);
+    parseHttpResponse(http_parser, &input);
+
+    printf("[*] parseHttpResponse: %s\n", getParsingState(http_parser->parser_state));
+    
+    BufferStorage* full_response_buffer = createBufferStorage();
+    appendToBuffer(full_response_buffer, response_buf, bytes);
+
+    while(http_parser->parser_state != PS_DONE){
+        memset(response_buf, 0, MAX_BUFFER_SIZE);
+        bytes = SSL_read(host_ssl, response_buf, MAX_BUFFER_SIZE);
+        printf("[*] Bytes: %d\n", bytes);
+        appendToBuffer(full_response_buffer, response_buf, bytes);
+        input.data = response_buf;
+        input.size = bytes;
+        parseHttpResponse(http_parser, &input);
+        printf("[*] ParseHttpResponse: %s\n", getParsingState(http_parser->parser_state));
+    }
+
+    return createParserResult(http_parser, full_response_buffer);
+}
