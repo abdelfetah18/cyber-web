@@ -7,6 +7,7 @@ set(HEADERS
     "src/headers/RequestsManager.h"
     "src/headers/ProxyServer.h"
     "src/headers/AppUI.h"
+    "src/headers/Json.h"
     "src/headers/ServerManager.h")
     
     set(SOURCES
@@ -17,6 +18,7 @@ set(HEADERS
     "src/RequestsManager.c"
     "src/ProxyServer.c"
     "src/AppUI.c"
+    "src/Json.c"
     "src/ServerManager.c")
 
 set(CMAKE_C_STANDARD 11)
