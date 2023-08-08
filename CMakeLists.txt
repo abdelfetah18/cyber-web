@@ -1,4 +1,8 @@
+cmake_minimum_required(VERSION 3.25)
+
 project(JsEngine LANGUAGES C)
+
+file(COPY "src/CyberWeb.ui" DESTINATION ${CMAKE_CURRENT_BINARY_DIR}/ )
 
 set(HEADERS
     "src/headers/BufferStorage.h"

@@ -1,0 +1,135 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<interface>
+  <object class="GtkWindow" id="window">
+    <property name="title">Cyber Web Https Proxy</property>
+    <property name="default-width">800</property>
+    <property name="default-height">600</property>
+    <child>
+      <object id="main_container" class="GtkBox">
+        <property name="hexpand">true</property>
+        <property name="vexpand">true</property>
+        <property name="orientation">horizontal</property>
+        <child>
+          <object id="left_container" class="GtkBox">
+            <property name="orientation">vertical</property>
+            <property name="width-request">300</property>
+            <property name="hexpand">true</property>
+            <child>
+                <object id="title" class="GtkLabel">
+                    <property name="label">History</property>
+                </object>
+            </child>
+            <child>
+                <object id="scrollable_window" class="GtkScrolledWindow">
+                    <property name="vexpand">true</property>
+                    <child>
+                        <object id="history_list" class="GtkListBox">
+                        </object>
+                    </child>
+                </object>
+            </child>
+          </object>
+        </child>
+        <child>
+          <object id="right_container" class="GtkBox">
+            <property name="width-request">500</property>
+            <property name="hexpand">true</property>
+            <property name="vexpand">true</property>
+            <property name="orientation">vertical</property>
+            <child>
+                <object id="http_message" class="GtkNotebook">
+                    <property name="hexpand">true</property>
+                    <property name="vexpand">true</property>
+                    <child>
+                         <object id="http_request_message" class="GtkNotebook">
+                            <property name="hexpand">true</property>
+                            <property name="vexpand">true</property>
+                            <child>
+                                <object class="GtkLabel" id="http_request_raw">
+                                <property name="label">Raw Content</property>
+                                </object>
+                            </child>
+                            <child type="tab">
+                                <object class="GtkLabel" id="http_request_raw_tab_lable">
+                                <property name="label">Raw</property>
+                                </object>
+                            </child>
+
+                            <child>
+                                <object class="GtkListBox" id="http_request_headers">
+                                </object>
+                            </child>
+                            <child type="tab">
+                                <object class="GtkLabel" id="http_request_headers_tab_label">
+                                <property name="label">Headers</property>
+                                </object>
+                            </child>
+
+                            <child>
+                                <object class="GtkLabel" id="http_request_body">
+                                <property name="label">Body Content</property>
+                                </object>
+                            </child>
+                            <child type="tab">
+                                <object class="GtkLabel" id="http_request_body_tab_label">
+                                <property name="label">Body</property>
+                                </object>
+                            </child>
+                        </object>
+                    </child>
+                    <child type="tab">
+                        <object class="GtkLabel" id="http_raw_tab_lable">
+                        <property name="label">Request</property>
+                        </object>
+                    </child>
+
+                    <child>
+                         <object id="http_response_message" class="GtkNotebook">
+                            <property name="hexpand">true</property>
+                            <property name="vexpand">true</property>
+                            <child>
+                                <object class="GtkLabel" id="http_response_raw">
+                                <property name="label">Raw Content</property>
+                                </object>
+                            </child>
+                            <child type="tab">
+                                <object class="GtkLabel" id="http_response_raw_tab_lable">
+                                <property name="label">Raw</property>
+                                </object>
+                            </child>
+
+                            <child>
+                                <object class="GtkListBox" id="http_response_headers">
+                                </object>
+                            </child>
+                            <child type="tab">
+                                <object class="GtkLabel" id="http_response_headers_tab_label">
+                                <property name="label">Headers</property>
+                                </object>
+                            </child>
+
+                            <child>
+                                <object class="GtkLabel" id="http_response_body">
+                                <property name="label">Body Content</property>
+                                </object>
+                            </child>
+                            <child type="tab">
+                                <object class="GtkLabel" id="http_response_body_tab_label">
+                                <property name="label">Body</property>
+                                </object>
+                            </child>
+                        </object>
+                    </child>
+                    <child type="tab">
+                        <object class="GtkLabel" id="http_headers_tab_label">
+                        <property name="label">Response</property>
+                        </object>
+                    </child>
+                </object>
+            </child>
+          </object>
+        </child>
+      </object>
+    </child>
+  </object>
+</interface>
