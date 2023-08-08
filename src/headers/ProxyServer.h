@@ -17,13 +17,12 @@ typedef struct WorkerParams {
     SOCKET_HANDLE client;
     SSL* host_ssl;
     SOCKET_HANDLE host;
-    void* my_app;
 } WorkerParams;
 
 void proxyServerThread(void* args);
 void workerThread(void* args);
 void closePeersConnectionsAndExit(WorkerParams* peers);
 
-WorkerParams* createWorkerParams(SSL* client_ssl,SOCKET_HANDLE client,SSL* host_ssl,SOCKET_HANDLE host,void* my_app);
+WorkerParams* createWorkerParams(SSL* client_ssl,SOCKET_HANDLE client,SSL* host_ssl,SOCKET_HANDLE host);
 
 #endif

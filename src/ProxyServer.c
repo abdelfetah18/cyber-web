@@ -13,13 +13,12 @@ void closePeersConnectionsAndExit(WorkerParams* peers){
     pthread_exit(1);
 }
 
-WorkerParams* createWorkerParams(SSL* client_ssl,SOCKET_HANDLE client,SSL* host_ssl,SOCKET_HANDLE host,void* my_app){
+WorkerParams* createWorkerParams(SSL* client_ssl,SOCKET_HANDLE client,SSL* host_ssl,SOCKET_HANDLE host){
     WorkerParams* worker_params = malloc(sizeof(WorkerParams));
     worker_params->client = client;
     worker_params->client_ssl = client_ssl;
     worker_params->host = host;
     worker_params->host_ssl = host_ssl;
-    worker_params->my_app = my_app;
     
     return worker_params;
 }
@@ -28,7 +27,6 @@ void workerThread(void* args){
    printf("[*] workerThread started successfuly.\n");
 
     WorkerParams* thread_params = (WorkerParams*) args;
-    MyAppUI* my_app = (MyAppUI*) thread_params->my_app;
 
     SSL* client_ssl = thread_params->client_ssl;
     SOCKET_HANDLE client = thread_params->client;
@@ -40,10 +38,8 @@ void workerThread(void* args){
     ParserResult* parsing_request_result = receiveFullHttpRequest(client_ssl, &peers);
     BufferStorage* full_request_buffer = parsing_request_result->full_raw_data;
 
-    // Emit a update_ui signal with ADD_TO_HISTORY callback.
-    IPCParam* param = createIPCParam(my_app, parsing_request_result);
-    IPCMessage* ipc_message = createIPCMessage(ADD_TO_HISTORY, param);
-    g_signal_emit_by_name(my_app->window, "update_ui", ipc_message);
+    // TODO: Emit a update_ui signal with ADD_TO_HISTORY callback.
+    // g_signal_emit_by_name(my_app->window, "update_ui", ipc_message);
 
     // Forward http request to the target server.
     SSL_write(host_ssl, full_request_buffer->data, full_request_buffer->size);
@@ -61,7 +57,6 @@ void workerThread(void* args){
 }
 
 void proxyServerThread(void* args){
-    MyAppUI* my_app = (MyAppUI*) args;
     uint port = 8080;
     
     // TODO: Pass the port throw args.
@@ -108,7 +103,7 @@ void proxyServerThread(void* args){
                 SSL* client_ssl = acceptSSLConnection(client->socket, res.target_host_name);
                 printf("[*] Accept Client SSL connection.\n");
 
-                WorkerParams* params = createWorkerParams(client_ssl, client, host_ssl, host, my_app);
+                WorkerParams* params = createWorkerParams(client_ssl, client, host_ssl, host);
                 pthread_t WORKER_ID;
                 pthread_create(&WORKER_ID, NULL, workerThread, params);
             }else{
