@@ -45,8 +45,13 @@
                             <property name="hexpand">true</property>
                             <property name="vexpand">true</property>
                             <child>
-                                <object class="GtkLabel" id="http_request_raw">
-                                <property name="label">Raw Content</property>
+                                <object class="GtkScrolledWindow">
+                                    <property name="vexpand">true</property>
+                                    <property name="hexpand">true</property>
+                                    <child>
+                                        <object class="GtkTextView" id="http_request_raw">
+                                        </object>
+                                    </child>
                                 </object>
                             </child>
                             <child type="tab">
@@ -66,13 +71,12 @@
                             </child>
 
                             <child>
-                                <object class="GtkLabel" id="http_request_body">
-                                <property name="label">Body Content</property>
+                                <object class="GtkTextView" id="http_request_body">
                                 </object>
                             </child>
                             <child type="tab">
                                 <object class="GtkLabel" id="http_request_body_tab_label">
-                                <property name="label">Body</property>
+                                    <property name="label">Body</property>
                                 </object>
                             </child>
                         </object>
@@ -88,13 +92,18 @@
                             <property name="hexpand">true</property>
                             <property name="vexpand">true</property>
                             <child>
-                                <object class="GtkLabel" id="http_response_raw">
-                                <property name="label">Raw Content</property>
+                                <object class="GtkScrolledWindow">
+                                    <property name="vexpand">true</property>
+                                    <property name="hexpand">true</property>
+                                    <child>
+                                        <object class="GtkTextView" id="http_response_raw">
+                                        </object>
+                                    </child>
                                 </object>
                             </child>
                             <child type="tab">
                                 <object class="GtkLabel" id="http_response_raw_tab_lable">
-                                <property name="label">Raw</property>
+                                    <property name="label">Raw</property>
                                 </object>
                             </child>
 
@@ -104,25 +113,24 @@
                             </child>
                             <child type="tab">
                                 <object class="GtkLabel" id="http_response_headers_tab_label">
-                                <property name="label">Headers</property>
+                                    <property name="label">Headers</property>
                                 </object>
                             </child>
 
                             <child>
-                                <object class="GtkLabel" id="http_response_body">
-                                <property name="label">Body Content</property>
+                                <object class="GtkTextView" id="http_response_body">
                                 </object>
                             </child>
                             <child type="tab">
                                 <object class="GtkLabel" id="http_response_body_tab_label">
-                                <property name="label">Body</property>
+                                 <property name="label">Body</property>
                                 </object>
                             </child>
                         </object>
                     </child>
                     <child type="tab">
                         <object class="GtkLabel" id="http_headers_tab_label">
-                        <property name="label">Response</property>
+                            <property name="label">Response</property>
                         </object>
                     </child>
                 </object>

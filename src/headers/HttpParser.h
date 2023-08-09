@@ -37,6 +37,7 @@ typedef struct {
     HTTP_VERSION http_version;
     HttpHeaders *headers;
     BufferStorage* body;
+    BufferStorage* raw;
 } HttpRequest;
 
 typedef struct {
@@ -45,6 +46,7 @@ typedef struct {
     char* reason_phrase;
     HttpHeaders *headers;
     BufferStorage* body;
+    BufferStorage* raw;
 } HttpResponse;
 
 

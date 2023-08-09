@@ -1,5 +1,87 @@
 #include "headers/AppUI.h"
 
+GtkWindow* window = NULL;
+GtkBuilder* builder = NULL;
+HistoryItem* history_list = NULL;
+
+HistoryItem* createHistoryItem(uint id,HttpRequest* http_request,HttpResponse* http_response){
+    HistoryItem* item = malloc(sizeof(HistoryItem));
+    item->id = id;
+    item->http_request = http_request;
+    item->http_response = http_response;
+    item->next = NULL;
+
+    return item;
+}
+
+void insertIntoHistoryList(HistoryItem* item){
+    if(history_list == NULL){
+        history_list = item;
+        return;
+    }
+    item->next = history_list;
+    history_list = item;
+}
+
+void updateHistoryItemHttpRequest(uint id,HttpRequest* http_request){
+    HistoryItem* cur = history_list;
+    while(cur != NULL){
+        if(cur->id == id){
+            cur->http_request = http_request;
+            return;
+        }
+        cur = cur->next;
+    }
+}
+
+void updateHistoryItemHttpResponse(uint id,HttpResponse* http_response){
+    HistoryItem* cur = history_list;
+    while(cur != NULL){
+        if(cur->id == id){
+            cur->http_response = http_response;
+            return;
+        }
+        cur = cur->next;
+    }
+}
+
+HistoryItem* getHistoryItemById(uint id){
+      HistoryItem* cur = history_list;
+    while(cur != NULL){
+        if(cur->id == id){
+            return cur;
+        }
+        cur = cur->next;
+    }
+    return NULL;
+}
+
+void updateUI(GtkWidget *widget, gpointer data){
+    if(data == NULL)
+        return;
+    
+    /*
+        MAP:
+            ID -> { HttpRequest, HttpResponse }
+    */
+
+    IPCMessage* ipc_message = (IPCMessage*) data;
+    HistoryItem* item = (HistoryItem*) ipc_message->data;
+    
+    switch (ipc_message->type){
+        case HTTP_REQUEST: {
+            appendToHistory(item->id, item->http_request->resource_path);
+            break;
+        }
+        case HTTP_RESPONSE:{
+            
+            break;    
+        }
+        default:
+            break;
+    }
+}
+
 static void activate(GtkApplication *app, gpointer user_data){
 
     /* Construct a GtkBuilder instance and load our UI description */
@@ -7,39 +89,18 @@ static void activate(GtkApplication *app, gpointer user_data){
     gtk_builder_add_from_file(builder, "CyberWeb.ui", NULL);
 
     /* Connect signal handlers to the constructed widgets. */
-    GObject *window = gtk_builder_get_object(builder, "window");
+    window = GTK_WINDOW(gtk_builder_get_object(builder, "window"));
     
+    // Register a callback to update the GUI.
+    gint signal = g_signal_new("update_ui", G_TYPE_OBJECT, G_SIGNAL_RUN_FIRST, 0, NULL, NULL, g_cclosure_marshal_VOID__POINTER, G_TYPE_NONE, 1, G_TYPE_POINTER);
+    g_signal_connect(window, "update_ui", G_CALLBACK(updateUI), NULL);
+
     // Start the proxy server.
     pthread_t WORKER_ID;
     pthread_create(&WORKER_ID, NULL, proxyServerThread, NULL);
 
-    gtk_window_set_application(GTK_WINDOW (window), app);
+    gtk_window_set_application(GTK_WINDOW(window), app);
     gtk_widget_show(GTK_WIDGET (window));
-
-    // TEST: append To History
-    for(int i = 0; i < 20; i++){
-        appendToHistory("https://abdelfetah.dev/i am the best developer in the world");
-    }
-
-    char* example_request = "GET /foo/bar HTTP/1.1\r\n"
-                            "Host: example.org\r\n"
-                            "User-Agent: Mozilla/5.0 (Macintosh; U; Intel Mac OS X 10.6; fr; rv:1.9.2.8) Gecko/20100722 Firefox/3.6.8\r\n"
-                            "Accept: *\r\n"
-                            "Accept-Language: fr,fr-fr;q=0.8,en-us;q=0.5,en;q=0.3\r\n"
-                            "Accept-Encoding: gzip,deflate\r\n"
-                            "Accept-Charset: ISO-8859-1,utf-8;q=0.7,*;q=0.7\r\n"
-                            "Keep-Alive: 115\r\n"
-                            "Connection: keep-alive\r\n"
-                            "Content-Type: application/x-www-form-urlencoded\r\n"
-                            "X-Requested-With: XMLHttpRequest\r\n"
-                            "Referer: http://example.org/test\r\n"
-                            "Cookie: foo=bar; lorem=ipsum;\r\n\r\n\0";
-    
-    setRequestRaw(example_request, strlen(example_request));
-    setResponseRaw(example_request, strlen(example_request));
-
-    appendToHttpRequestHeaders("Connection", "keep-alive");
-    appendToHttpResponseHeaders("Server", "CyberWeb");
 }
 
 int main_loop(int argc,char** argv){
@@ -54,18 +115,34 @@ int main_loop(int argc,char** argv){
     return status;
 }
 
-
-void appendToHistory(char* data){
-    GObject *history_list = gtk_builder_get_object(builder, "history_list");
-    GtkWidget* label = gtk_button_new_with_label(data);
-    gtk_list_box_append(GTK_WIDGET(history_list), label);
-    // g_signal_connect(label, "clicked", G_CALLBACK(onClick), params);    
+void onHistoryItemSelected(GtkWidget* widget,gpointer data){
+    HistoryItem* item = getHistoryItemById((uint) data);
+    setRequestRaw(item->http_request->raw->data, item->http_request->raw->size);
+    if(item->http_response && item->http_response->raw){
+        setResponseRaw(item->http_response->raw->data, item->http_response->raw->size);
+    }
 }
 
-void addToHistory(ParserResult* parser_result){
-    char* path = parser_result->parser->http_request->resource_path;    
-    appendToHistory(path);
-    printf("[*] addToHistory Done.\n");
+void appendToHistory(uint id, char* data){
+    GObject *history_list = gtk_builder_get_object(builder, "history_list");
+
+    int len = strlen(data);
+    char* path = data;
+
+    if(len > 80){
+        path = malloc(sizeof(char) * 31);
+        strncpy(path, data, 27);
+        strncpy(path+27, "...\0", 4);
+    }
+    GtkWidget* label = gtk_label_new(path);
+    gtk_label_set_justify(GTK_LABEL(label), GTK_JUSTIFY_LEFT);
+    gtk_label_set_xalign(GTK_LABEL(label), 0.0);
+    gtk_label_set_yalign(GTK_LABEL(label), 0.0);
+    
+    GtkWidget* button = gtk_button_new();
+    gtk_button_set_child(button, label);
+    gtk_list_box_append(GTK_WIDGET(history_list), button);
+    g_signal_connect(button, "clicked", G_CALLBACK(onHistoryItemSelected), id);    
 }
 
 void clearHistory(GtkWidget* list){
@@ -75,31 +152,41 @@ void clearHistory(GtkWidget* list){
 void setRequestRaw(char* data,int size){
     GObject* http_request_raw = gtk_builder_get_object(builder, "http_request_raw");
 
-    char* str = malloc((sizeof(char) * size) + 1);
-    strncpy(str, data, size);
+    GtkTextBuffer* buffer = gtk_text_buffer_new(NULL);
+    gtk_text_buffer_set_text(buffer, data, size);
 
-    gtk_label_set_label(GTK_WIDGET(http_request_raw), str);
-    gtk_label_set_wrap(GTK_WIDGET(http_request_raw), true);
+    gtk_text_view_set_editable(GTK_TEXT_VIEW(http_request_raw), false);
+    gtk_text_view_set_buffer(GTK_TEXT_VIEW(http_request_raw), buffer);
 }
 
 void setResponseRaw(char* data,int size){
     GObject* http_response_raw = gtk_builder_get_object(builder, "http_response_raw");
 
-    char* str = malloc((sizeof(char) * size) + 1);
-    strncpy(str, data, size);
+    GtkTextBuffer* buffer = gtk_text_buffer_new(NULL);
+    gtk_text_buffer_set_text(buffer, data, size);
 
-    gtk_label_set_label(GTK_WIDGET(http_response_raw), str);
-    gtk_label_set_wrap(GTK_WIDGET(http_response_raw), true);
+    gtk_text_view_set_editable(GTK_TEXT_VIEW(http_response_raw), false);
+    gtk_text_view_set_buffer(GTK_TEXT_VIEW(http_response_raw), buffer);
 }
 
 void setRequestBody(GtkWidget* raw,char* data,int size){
-    // FIXME: Use a TextView instead of label.
-    gtk_label_set_label(raw, data);
+    GObject* http_request_body = gtk_builder_get_object(builder, "http_request_body");
+
+    GtkTextBuffer* buffer = gtk_text_buffer_new(NULL);
+    gtk_text_buffer_set_text(buffer, data, size);
+
+    gtk_text_view_set_editable(GTK_TEXT_VIEW(http_request_body), false);
+    gtk_text_view_set_buffer(GTK_TEXT_VIEW(http_request_body), buffer);
 }
 
 void setResponseBody(GtkWidget* raw,char* data,int size){
-    // FIXME: Use a TextView instead of label.
-    gtk_label_set_label(raw, data);
+    GObject* http_response_body = gtk_builder_get_object(builder, "http_response_body");
+
+    GtkTextBuffer* buffer = gtk_text_buffer_new(NULL);
+    gtk_text_buffer_set_text(buffer, data, size);
+
+    gtk_text_view_set_editable(GTK_TEXT_VIEW(http_response_body), false);
+    gtk_text_view_set_buffer(GTK_TEXT_VIEW(http_response_body), buffer);
 }
 
 void appendToHeaders(GtkWidget* tab_content,char* field_name,char* field_value){
