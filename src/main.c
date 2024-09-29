@@ -1,5 +1,7 @@
-#include "headers/AppUI.h"
+#include "headers/ProxyServer.h"
+#include <time.h>
 
 int main(int argc,char** argv){
-    return main_loop(argc, argv);
+    proxyServerThread(NULL);
+    return 0;
 }

@@ -3,3 +3,4 @@ config
 *.key
 build
 .vscode
+.cache

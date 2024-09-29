@@ -5,11 +5,9 @@
 #include <stdlib.h>
 #include <stdbool.h>
 #include <string.h>
-#include <gtk/gtk.h>
 #include <X11/Xlib.h>
 
 #include "ServerManager.h"
-#include "AppUI.h"
 #include "RequestsManager.h"
 
 typedef struct WorkerParams {

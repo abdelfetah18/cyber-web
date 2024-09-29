@@ -1,4 +1,5 @@
 #include "headers/ProxyServer.h"
+#include <time.h>
 
 void closePeersConnectionsAndExit(WorkerParams* peers){
     // Close the connection.
@@ -10,7 +11,7 @@ void closePeersConnectionsAndExit(WorkerParams* peers){
     close(peers->host);
 
     // NOTE: Using 'pthread_exit' because this function will only be called on a thread and calling 'exit' will exit the main process.
-    pthread_exit(1);
+    pthread_exit(NULL);
 }
 
 WorkerParams* createWorkerParams(SSL* client_ssl,SOCKET_HANDLE client,SSL* host_ssl,SOCKET_HANDLE host){
@@ -40,16 +41,6 @@ void workerThread(void* args){
 
     parsing_request_result->parser->http_request->raw = full_request_buffer;
 
-    uint id = history_list == NULL ? 0 : (history_list->id + 1);
-    HistoryItem* item = createHistoryItem(id, parsing_request_result->parser->http_request, NULL);
-    insertIntoHistoryList(item);
-    IPCMessage* ipc_message = malloc(sizeof(IPCMessage));
-    ipc_message->data = item;
-    ipc_message->type = HTTP_REQUEST;
-
-
-    g_signal_emit_by_name(window, "update_ui", ipc_message);    
-
     // Forward http request to the target server.
     SSL_write(host_ssl, full_request_buffer->data, full_request_buffer->size);
     
@@ -58,8 +49,6 @@ void workerThread(void* args){
     BufferStorage* full_response_buffer = parsing_response_result->full_raw_data;
     
     parsing_response_result->parser->http_response->raw = full_response_buffer;
-
-    updateHistoryItemHttpResponse(id, parsing_response_result->parser->http_response);
 
     // Forward http response to the client.
     SSL_write(client_ssl, full_response_buffer->data, full_response_buffer->size);
@@ -155,13 +144,13 @@ void proxyServerThread(void* args){
                 }else{
                     printf("[*] Http Request is not supported yet.\n");
                 }
-                close(client);
+                close(client->socket);
             }
         }else{
             printf("[*] Invalid Request.\n");
-            close(client);
+            close(client->socket);
         }
     }
     
-    return 0;
+    return;
 }
