@@ -1,4 +1,5 @@
 #include "headers/ServerManager.h"
+#include "headers/ProxyServer.h"
 
 Server* createServer(int port){
     Server* server = malloc(sizeof(Server));

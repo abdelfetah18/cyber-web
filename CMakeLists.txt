@@ -9,9 +9,11 @@ set(HEADERS
     "src/headers/RequestsManager.h"
     "src/headers/ProxyServer.h"
     "src/headers/Json.h"
+    "src/headers/Helpers.h"
+    "src/headers/ElectronIPC.h"
     "src/headers/ServerManager.h")
     
-    set(SOURCES
+set(SOURCES
     "src/BufferStorage.c"
     "src/CertificateManager.c"
     "src/HttpParser.c"
@@ -19,9 +21,11 @@ set(HEADERS
     "src/RequestsManager.c"
     "src/ProxyServer.c"
     "src/Json.c"
+    "src/Helpers.c"
+    "src/ElectronIPC.c"
     "src/ServerManager.c")
 
-set(CMAKE_C_STANDARD 11)
+set(CMAKE_C_STANDARD 23)
 set(CMAKE_C_STANDARD_REQUIRED ON)
 
 add_executable(CyberWeb ${SOURCES} ${HEADERS})

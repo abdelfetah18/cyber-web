@@ -1,4 +1,10 @@
 #include "headers/ProxyServer.h"
+#include "headers/BufferStorage.h"
+#include "headers/CertificateManager.h"
+#include "headers/RequestsManager.h"
+#include "headers/Helpers.h"
+#include "headers/ElectronIPC.h"
+#include <stdio.h>
 #include <time.h>
 
 void closePeersConnectionsAndExit(WorkerParams* peers){
@@ -24,7 +30,7 @@ WorkerParams* createWorkerParams(SSL* client_ssl,SOCKET_HANDLE client,SSL* host_
     return worker_params;
 }
 
-void workerThread(void* args){
+void* workerThread(void* args){
    printf("[*] workerThread started successfuly.\n");
 
     WorkerParams* thread_params = (WorkerParams*) args;
@@ -38,9 +44,21 @@ void workerThread(void* args){
     // Get full http request from the client.
     ParserResult* parsing_request_result = receiveFullHttpRequest(client_ssl, &peers);
     BufferStorage* full_request_buffer = parsing_request_result->full_raw_data;
-
     parsing_request_result->parser->http_request->raw = full_request_buffer;
+    
+    // Initialize ElectronSocket For Request
+    initializeElectronSocket();
 
+    // Create IPC Request
+    char* requestID = generateUniqueID();
+    printf("requestID: %s\n", requestID);
+    BufferStorage* ipc_request = createBufferStorage();
+    appendToBuffer(ipc_request, "REQUEST_ID: ",12);
+    appendToBuffer(ipc_request, requestID,8);
+    appendToBuffer(ipc_request, "\n",1);
+    appendToBuffer(ipc_request, full_request_buffer->data,full_request_buffer->size);
+    sendDataToElectronSocket(ipc_request->data,ipc_request->size);
+    
     // Forward http request to the target server.
     SSL_write(host_ssl, full_request_buffer->data, full_request_buffer->size);
     
@@ -50,6 +68,18 @@ void workerThread(void* args){
     
     parsing_response_result->parser->http_response->raw = full_response_buffer;
 
+    // Initialize ElectronSocket For Response
+    initializeElectronSocket();
+
+    // Create IPC Response
+    BufferStorage* ipc_response = createBufferStorage();
+    appendToBuffer(ipc_response, "REQUEST_ID: ",12);
+    appendToBuffer(ipc_response, requestID,8);
+    appendToBuffer(ipc_response, "\n",1);
+    appendToBuffer(ipc_response, full_response_buffer->data,full_response_buffer->size);
+    sendDataToElectronSocket(ipc_response->data,ipc_response->size);
+    
+
     // Forward http response to the client.
     SSL_write(client_ssl, full_response_buffer->data, full_response_buffer->size);
     
@@ -58,7 +88,7 @@ void workerThread(void* args){
     closePeersConnectionsAndExit(&peers);
 }
 
-void proxyServerThread(void* args){
+void startProxyServer(void* args){
     uint port = 8080;
     
     // TODO: Pass the port throw args.
@@ -105,7 +135,7 @@ void proxyServerThread(void* args){
                 SSL* client_ssl = acceptSSLConnection(client->socket, res.target_host_name);
                 printf("[*] Accept Client SSL connection.\n");
 
-                WorkerParams* params = createWorkerParams(client_ssl, client, host_ssl, host);
+                WorkerParams* params = createWorkerParams(client_ssl, client->socket, host_ssl, host->socket);
                 pthread_t WORKER_ID;
                 pthread_create(&WORKER_ID, NULL, workerThread, params);
             }else{

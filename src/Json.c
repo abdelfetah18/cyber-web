@@ -239,7 +239,7 @@ JSON_ARRAY* parse_array_object(JSON_PARSER* parser){
                 break;
             case JT_BOOLEAN:
                 // FIXME: Until it get running i am using true bool.
-                value = create_json_value(JSON_TYPE_BOOLEAN, true);
+                value = create_json_value(JSON_TYPE_BOOLEAN, parser->current_token->value);
                 consume_token(parser);
                 break;
             case JT_NUMBER:
@@ -297,7 +297,7 @@ JSON_OBJECT* parse_json_object(JSON_PARSER* parser){
                 break;
             case JT_BOOLEAN:
                 // FIXME: Until it get running i am using true bool.
-                value = create_json_value(JSON_TYPE_BOOLEAN, true);
+                value = create_json_value(JSON_TYPE_BOOLEAN, parser->current_token->value);
                 consume_token(parser);
                 break;
             case JT_NUMBER:

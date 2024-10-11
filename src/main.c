@@ -2,6 +2,8 @@
 #include <time.h>
 
 int main(int argc,char** argv){
-    proxyServerThread(NULL);
+    // Seed the random number generator
+    srand(time(NULL));
+    startProxyServer(NULL);
     return 0;
 }
